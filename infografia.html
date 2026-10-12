@@ -488,7 +488,8 @@ function draw() {
   const lat = M ? 0 : Math.max(180, Math.min(240, TW * 0.22)), GL = M ? 0 : 26;
   const [mx0, my0, mx1, myc] = MAPA.marcComu, my1 = MAPA.marc2024[3];
   const FW = mx1 - mx0, FHc = myc - my0, FH = my1 - my0;
-  const altAny = Math.round(MD.titolet * 1.5) + 2;
+  const pxAny = M ? 18 : 22;                              // anys sobre els plànols
+  const altAny = Math.round(pxAny * 1.3) + 4;
   const s = Math.min((TW - 2 * G - GL - lat) / (3 * FW), (TH - altAny) / FH);   // px per metre
   const colW = FW * s, boxH = FHc * s, totalH = FH * s;
   const x0 = (TW - (3 * colW + 2 * G + GL + lat)) / 2;
@@ -504,9 +505,9 @@ function draw() {
   let capaBaix = null;
   ANYS.forEach((any, i) => {
     const px = x0 + i * (colW + G);
-    svg.append('text').attr('x', px + colW / 2).attr('y', y0 + MD.titolet * 1.1)
+    svg.append('text').attr('x', px + colW / 2).attr('y', y0 + pxAny)
       .attr('text-anchor', 'middle').attr('font-family', 'Merriweather').attr('font-weight', 700)
-      .attr('font-size', MD.titolet).attr('fill', '#232323').text(any);
+      .attr('font-size', pxAny).attr('fill', '#232323').text(any);
     const g = svg.append('g').attr('transform', `translate(${px},${dalt})`);
     defs.append('clipPath').attr('id', 'clip-' + any).append('rect').attr('width', colW).attr('height', boxH);
     const gz = g.append('g').attr('clip-path', `url(#clip-${any})`).append('g');
