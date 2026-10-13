@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Marina Port Vell: cada cop menys iots, però més grans</title>
+<title>Marina Port Vell: del model esportiu als superiots de luxe</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Roboto:wght@400;700&display=swap" rel="stylesheet">
@@ -211,7 +211,10 @@ svg#mapa { overflow: hidden; }
 .zoom-capa { cursor: grab; }
 .zoom-capa:active { cursor: grabbing; }
 .iots { fill: #BCE0FF; stroke: #2399FF; stroke-width: 0.5px; vector-effect: non-scaling-stroke; }
-.contorn { fill: none; stroke-width: 2px; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.contorn { fill: none; stroke-width: 3px; stroke-dasharray: 7 4; vector-effect: non-scaling-stroke; }
+.lloc { cursor: pointer; }
+.lloc:focus { outline: none; }
+.lloc:focus-visible path { stroke: #232323; stroke-width: 2px; }
 #zoom-controls { position: absolute; z-index: 10; display: flex; flex-direction: column; gap: 4px; }
 .ctrl-btn {
   min-width: 26px; height: 26px; padding: 0 7px; box-sizing: border-box; cursor: pointer;
@@ -226,7 +229,7 @@ svg#mapa { overflow: hidden; }
 </head>
 <body>
 <div class="infografia-container">
-  <h1 class="titol">Marina Port Vell: cada cop menys iots, però més grans</h1>
+  <h1 class="titol">Marina Port Vell: del model esportiu als superiots de luxe</h1>
   <div id="mapa-wrapper" class="mapa-wrapper">
     <svg id="mapa" role="img" aria-label="Plànols de la Marina Port Vell el 2010, el 2014 i el 2024: 410, 148 i 73 places per a iots"></svg>
     <div id="zoom-controls">
@@ -323,10 +326,17 @@ const C = {
   iot: '#BCE0FF', iotVora: '#2399FF',           // blau-200 / blau-500 (classe .iots)
   mpv: '#620FF8', mb92: '#FA6200',              // lila-500 / salmó-500
   columna: '#FFFD8F',                           // groc-200
+  lloc: '#C71400',                              // vermell-600: marcadors de punts d'interès
   camp: '#94E6CD', campLinia: '#0AA475',        // verd-200 / verd-600
   illa: '#BCE0FF', illaLinia: '#0080EF'         // blau-200 / blau-600
 };
 const ANYS = ['2010', '2014', '2024'];
+// Punts d'interès del plànol del 2024 (metres, com MAPA)
+const LLOCS = [
+  { nom: 'Museu d’Història de Catalunya', x: 630.5, y: 390 },
+  { nom: 'Passeig Joan de Borbó', x: 749, y: 456 },
+  { nom: 'Aquàrium', x: 501.4, y: 789.8 }             // centre de l'edifici a OSM
+];
 
 /* ===================== DIBUIX ===================== */
 const svg = d3.select('#mapa');
@@ -502,7 +512,7 @@ function draw() {
   const mon = `scale(${s}) translate(${-mx0},${-my0})`;
 
   const capesZoom = [], marcsZoom = [], overlays = [];
-  let capaBaix = null;
+  let capaBaix = null, marcadors = null;
   ANYS.forEach((any, i) => {
     const px = x0 + i * (colW + G);
     svg.append('text').attr('x', px + colW / 2).attr('y', y0 + pxAny)
@@ -524,6 +534,16 @@ function draw() {
     }
     overlays.push(g.append('rect').attr('class', 'zoom-capa').attr('width', colW).attr('height', boxH)
       .attr('fill', 'transparent').node());
+    // 2024: marcadors de punts d'interès, de mida fixa (fora de la capa amb zoom)
+    if (any === '2024') {
+      marcadors = g.append('g')
+        .selectAll('.lloc').data(LLOCS).join('g').attr('class', 'lloc')
+        .attr('role', 'button').attr('tabindex', 0).attr('aria-label', d => d.nom);
+      marcadors.append('path').attr('d', 'M0,0C-1.4,-4.2 -6.3,-7.7 -6.3,-11.9A6.3,6.3 0 1 1 6.3,-11.9C6.3,-7.7 1.4,-4.2 0,0Z')
+        .attr('fill', C.lloc).attr('stroke', '#fff').attr('stroke-width', 1);
+      marcadors.append('circle').attr('cy', -11.9).attr('r', 2.5).attr('fill', '#fff');
+      marcadors.each(function (d) { enllacaPopup(this, d.nom); });
+    }
   });
 
   /* ---------- Zoom sincronitzat ---------- */
@@ -534,6 +554,14 @@ function draw() {
     const ampliat = t.k > 1.01;
     capaBaix.attr('opacity', ampliat ? 0.35 : 1);
     marcsZoom.forEach(r => r.attr('display', ampliat ? null : 'none'));
+    // la punta marca el lloc: el marcador s'amaga quan la punta surt del plànol
+    marcadors.each(function (d) {
+      const x = t.applyX((d.x - mx0) * s), y = t.applyY((d.y - my0) * s);
+      // el cap del marcador (18 px d'alt) no sobresurt mai per dalt del plànol
+      d3.select(this).attr('transform', `translate(${x},${Math.max(y, 20)})`)
+        .attr('display', x >= 0 && x <= colW && y >= 0 && y <= boxH ? null : 'none');
+    });
+    tancaPopups();
     estatZoom = { k: t.k, fx: t.x / colW, fy: t.y / boxH };
   }
   const zoom = d3.zoom()
@@ -630,6 +658,41 @@ function draw() {
   ry += glif.hi + 4 + pxLbl;
   peu(ry, formatNum(N_ILLES), ' illes de l’Eixample');
 }
+
+/* Popup dels marcadors: hover amb ratolí, clic a tots els dispositius */
+const popup = document.createElement('div');
+popup.className = 'info-popup';
+popup.setAttribute('role', 'tooltip');
+document.body.appendChild(popup);
+function positionPopup(pop, el) {
+  const r = el.getBoundingClientRect(), M = 8, W = window.innerWidth, H = window.innerHeight;
+  pop.style.left = '0px'; pop.style.top = '0px';
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  let x = r.right + 8, y = r.top;
+  if (x + pw + M > W) x = r.left - pw - 8;
+  if (x < M) x = M;
+  if (y + ph + M > H) y = H - ph - M;
+  if (y < M) y = M;
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+}
+function tancaPopups() { popup.style.display = 'none'; popup._el = null; }
+function enllacaPopup(el, text) {
+  const obre = () => { popup.textContent = text; popup.style.display = 'block'; popup._el = el; positionPopup(popup, el); };
+  el.addEventListener('mouseenter', () => { if (potHover()) obre(); });
+  el.addEventListener('mouseleave', () => { if (potHover()) tancaPopups(); });
+  el.addEventListener('click', ev => {
+    ev.stopPropagation();
+    if (potHover()) return;                       // amb ratolí ja s'ha obert amb el hover
+    if (popup._el === el && popup.style.display === 'block') tancaPopups(); else obre();
+  });
+  el.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); popup._el === el ? tancaPopups() : obre(); }
+  });
+  // els gestos de zoom no han de començar sobre el marcador
+  el.addEventListener('mousedown', ev => ev.stopPropagation());
+  el.addEventListener('touchstart', ev => ev.stopPropagation(), { passive: true });
+}
+document.addEventListener('click', tancaPopups);
 
 /* Botons de zoom */
 function zoomBoto(fn) {
